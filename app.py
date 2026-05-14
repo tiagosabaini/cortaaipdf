@@ -4,24 +4,14 @@ import fitz  # PyMuPDF
 import os
 import zipfile
 from PIL import Image
-import sqlite3
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-def init_db():
-    conn = sqlite3.connect('database.db')
-    conn.execute('''CREATE TABLE IF NOT EXISTS configuracoes 
-                    (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, coords TEXT)''')
-    conn.close()
-
 @app.route('/')
 def index():
-    conn = sqlite3.connect('database.db')
-    configs = conn.execute('SELECT * FROM configuracoes').fetchall()
-    conn.close()
-    return render_template('index.html', configs=configs)
+    return render_template('index.html')
 
 @app.route('/upload_preview', methods=['POST'])
 def upload_preview():
@@ -38,13 +28,11 @@ def preview(filename, pagnumber):
     if not os.path.exists(pdf_path): return "Erro", 404
     
     doc = fitz.open(pdf_path)
-    # Garante que a página solicitada existe no PDF
     total = len(doc)
-    if pagnumber >= total: pagnumber = total - 1
-    if pagnumber < 0: pagnumber = 0
+    pagnumber = max(0, min(pagnumber, total - 1))
     
     page = doc[pagnumber]
-    pix = page.get_pixmap(dpi=100)
+    pix = page.get_pixmap(dpi=100) 
     img_data = pix.tobytes("png")
     doc.close()
     return send_file(io.BytesIO(img_data), mimetype='image/png')
@@ -54,8 +42,14 @@ def processar():
     filename = request.form['filename']
     inicio = int(request.form['inicio'])
     fim = int(request.form['fim'])
-    c = list(map(float, request.form['coords'].split(',')))
     
+    # x, y, w, h, dispW, dispH, realW, realH
+    data = list(map(float, request.form['coords'].split(',')))
+    x, y, w, h, dispW, dispH, realW, realH = data
+    
+    scale_x = realW / dispW
+    scale_y = realH / dispH
+
     pdf_path = os.path.join(UPLOAD_FOLDER, filename)
     doc = fitz.open(pdf_path)
     zip_path = os.path.join(UPLOAD_FOLDER, "recortes.zip")
@@ -63,15 +57,18 @@ def processar():
     with zipfile.ZipFile(zip_path, 'w') as zip_f:
         for p in range(inicio, fim + 1):
             if p >= len(doc): break
-            page = doc[p] 
-            pix = page.get_pixmap(dpi=300) 
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            page = doc[p]
+            pix = page.get_pixmap(dpi=300)
+            img_full = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             
-            s = 300 / 100 # Escala Preview vs Corte Final
-            area = (c[0]*s, c[1]*s, (c[0]+c[2])*s, (c[1]+c[3])*s)
+            dpi_m = 300 / 100
+            left = x * scale_x * dpi_m
+            top = y * scale_y * dpi_m
+            right = (x + w) * scale_x * dpi_m
+            bottom = (y + h) * scale_y * dpi_m
             
-            img_cortada = img.crop(area)
-            img_name = f"pagina_{p}.png"
+            img_cortada = img_full.crop((left, top, right, bottom))
+            img_name = f"pagina_{p+1}.png"
             img_path = os.path.join(UPLOAD_FOLDER, img_name)
             img_cortada.save(img_path)
             zip_f.write(img_path, img_name)
@@ -81,5 +78,4 @@ def processar():
     return send_file(zip_path, as_attachment=True)
 
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True)
