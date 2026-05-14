@@ -2,80 +2,23 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>PDF Visual - Pedro Bueno</title>
+    <title>PDF Cropper Pro - Pedro Bueno</title>
     <link rel="stylesheet" href="/static/style.css">
-    <style>
-        #preview-container {
-            display: none;
-            margin: 20px auto;
-            text-align: center;
-        }
-        #preview-wrapper {
-            position: relative;
-            display: inline-block;
-            border: 2px solid #555;
-            line-height: 0;
-            overflow: hidden; /* Garante que nada saia visualmente */
-            user-select: none;
-        }
-        #pdf-img {
-            max-width: 100%;
-            display: block;
-        }
-        #selector {
-            position: absolute;
-            border: 2px dashed #4CAF50;
-            background: rgba(76, 175, 80, 0.2);
-            cursor: move;
-            box-sizing: border-box;
-            width: 150px;
-            height: 150px;
-            top: 0;
-            left: 0;
-        }
-        #resizer {
-            position: absolute;
-            right: 0;
-            bottom: 0;
-            width: 15px;
-            height: 15px;
-            background: #4CAF50;
-            cursor: nwse-resize;
-        }
-        .nav-controls {
-            margin: 15px 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 20px;
-        }
-        .nav-btn {
-            background: #444;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .nav-btn:hover { background: #555; }
-    </style>
 </head>
 <body>
     <div class="container">
-        <h1>Recortador Visual 2.0 🚀</h1>
+        <h1>Recortador Visual de PDF 🚀</h1>
 
-        <label for="pdf-file" class="custom-file-upload">
-            📁 Selecionar PDF para Visualização
-        </label>
+        <label for="pdf-file" class="custom-file-upload">📁 Escolher PDF (Auto-Preview)</label>
         <input type="file" id="pdf-file" accept="application/pdf" onchange="uploadAndPreview()" style="display:none;">
 
-        <div id="loading" style="display:none; color: #4CAF50;">⏳ Carregando página...</div>
+        <div id="loading" style="display:none; color: #4CAF50; margin: 10px;">⏳ Carregando página...</div>
 
-        <div id="preview-container">
+        <div id="preview-container" style="display:none;">
             <div class="nav-controls">
-                <button type="button" class="nav-btn" onclick="changePage(-1)">⬅️ Anterior</button>
+                <button type="button" onclick="changePage(-1)">⬅️ Anterior</button>
                 <span id="page-info">Página: 0</span>
-                <button type="button" class="nav-btn" onclick="changePage(1)">Próxima ➡️</button>
+                <button type="button" onclick="changePage(1)">Próxima ➡️</button>
             </div>
 
             <div id="preview-wrapper">
@@ -86,23 +29,22 @@
             </div>
         </div>
 
-        <form action="/processar" method="post" id="main-form">
+        <form action="/processar" method="post" onsubmit="updateCoords()">
             <input type="hidden" name="filename" id="hidden-filename">
             <input type="hidden" name="coords" id="coords-input">
             
             <div class="row">
                 <div class="input-group">
-                    <label>Página Início:</label>
+                    <label>Início (Pág):</label>
                     <input type="number" name="inicio" id="input-inicio" value="0">
                 </div>
                 <div class="input-group">
-                    <label>Página Fim:</label>
+                    <label>Fim (Pág):</label>
                     <input type="number" name="fim" value="1">
                 </div>
             </div>
-            <button type="submit" class="btn-primary">GERAR E BAIXAR ZIP</button>
+            <button type="submit" class="btn-primary">RECORTAR E BAIXAR ZIP</button>
         </form>
-        <p class="footer">© Pedro Bueno</p>
     </div>
 
     <script>
@@ -113,15 +55,16 @@
         const inputInicio = document.getElementById('input-inicio');
         
         let currentPage = 0;
+        let isDragging = false, isResizing = false;
+        let startX, startY, startW, startH;
 
         async function uploadAndPreview() {
             const file = document.getElementById('pdf-file').files[0];
             if(!file) return;
-
             document.getElementById('loading').style.display = 'block';
+            
             const formData = new FormData();
             formData.append('pdf', file);
-
             const res = await fetch('/upload_preview', { method: 'POST', body: formData });
             const data = await res.json();
             
@@ -134,11 +77,14 @@
             const filename = document.getElementById('hidden-filename').value;
             img.src = `/preview/${filename}/${currentPage}?t=${new Date().getTime()}`;
             document.getElementById('page-info').innerText = `Visualizando Página: ${currentPage}`;
-            inputInicio.value = currentPage; // Sincroniza o form com a visão
+            inputInicio.value = currentPage;
 
             img.onload = () => {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('preview-container').style.display = 'block';
+                // Reinicia a grade para uma posição visível ao trocar de página
+                selector.style.top = "10px";
+                selector.style.left = "10px";
                 updateCoords();
             };
         }
@@ -149,10 +95,6 @@
             updatePreview();
         }
 
-        // Lógica de Arrastar e Redimensionar com Contenção
-        let isDragging = false, isResizing = false;
-        let startX, startY, startW, startH;
-
         selector.onmousedown = (e) => {
             if(e.target === resizer) return;
             isDragging = true;
@@ -162,38 +104,25 @@
 
         resizer.onmousedown = (e) => {
             isResizing = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            startW = selector.offsetWidth;
-            startH = selector.offsetHeight;
-            e.stopPropagation();
-            e.preventDefault();
+            startX = e.clientX; startY = e.clientY;
+            startW = selector.offsetWidth; startH = selector.offsetHeight;
+            e.stopPropagation(); e.preventDefault();
         };
 
         window.onmousemove = (e) => {
             if (isDragging) {
-                let x = e.clientX - startX;
-                let y = e.clientY - startY;
-
-                // Bloqueia saída das bordas
-                if (x < 0) x = 0;
-                if (y < 0) y = 0;
-                if (x + selector.offsetWidth > img.offsetWidth) x = img.offsetWidth - selector.offsetWidth;
-                if (y + selector.offsetHeight > img.offsetHeight) y = img.offsetHeight - selector.offsetHeight;
-
+                let x = e.clientX - startX, y = e.clientY - startY;
+                x = Math.max(0, Math.min(x, img.offsetWidth - selector.offsetWidth));
+                y = Math.max(0, Math.min(y, img.offsetHeight - selector.offsetHeight));
                 selector.style.left = x + 'px';
                 selector.style.top = y + 'px';
             }
             if (isResizing) {
-                let newWidth = startW + (e.clientX - startX);
-                let newHeight = startH + (e.clientY - startY);
-
-                // Bloqueia redimensionamento para fora da imagem
-                if (selector.offsetLeft + newWidth > img.offsetWidth) newWidth = img.offsetWidth - selector.offsetLeft;
-                if (selector.offsetTop + newHeight > img.offsetHeight) newHeight = img.offsetHeight - selector.offsetTop;
-
-                selector.style.width = Math.max(20, newWidth) + 'px';
-                selector.style.height = Math.max(20, newHeight) + 'px';
+                let w = startW + (e.clientX - startX), h = startH + (e.clientY - startY);
+                w = Math.max(30, Math.min(w, img.offsetWidth - selector.offsetLeft));
+                h = Math.max(30, Math.min(h, img.offsetHeight - selector.offsetTop));
+                selector.style.width = w + 'px';
+                selector.style.height = h + 'px';
             }
             updateCoords();
         };
@@ -201,7 +130,13 @@
         window.onmouseup = () => { isDragging = false; isResizing = false; };
 
         function updateCoords() {
-            coordsInput.value = `${selector.offsetLeft},${selector.offsetTop},${selector.offsetWidth},${selector.offsetHeight}`;
+            const data = [
+                selector.offsetLeft, selector.offsetTop, 
+                selector.offsetWidth, selector.offsetHeight,
+                img.clientWidth, img.clientHeight,
+                img.naturalWidth, img.naturalHeight
+            ];
+            coordsInput.value = data.join(',');
         }
     </script>
 </body>
