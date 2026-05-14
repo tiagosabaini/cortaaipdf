@@ -2,80 +2,54 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>PDF Visual - Pedro Bueno</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Captura de PDF - Recorte e Extraia Áreas</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
-    <style>
-        #preview-container {
-            display: none;
-            margin: 20px auto;
-            text-align: center;
-        }
-        #preview-wrapper {
-            position: relative;
-            display: inline-block;
-            border: 2px solid #555;
-            line-height: 0;
-            overflow: hidden; /* Garante que nada saia visualmente */
-            user-select: none;
-        }
-        #pdf-img {
-            max-width: 100%;
-            display: block;
-        }
-        #selector {
-            position: absolute;
-            border: 2px dashed #4CAF50;
-            background: rgba(76, 175, 80, 0.2);
-            cursor: move;
-            box-sizing: border-box;
-            width: 150px;
-            height: 150px;
-            top: 0;
-            left: 0;
-        }
-        #resizer {
-            position: absolute;
-            right: 0;
-            bottom: 0;
-            width: 15px;
-            height: 15px;
-            background: #4CAF50;
-            cursor: nwse-resize;
-        }
-        .nav-controls {
-            margin: 15px 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 20px;
-        }
-        .nav-btn {
-            background: #444;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .nav-btn:hover { background: #555; }
-    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Recortador Visual 2.0 🚀</h1>
 
-        <label for="pdf-file" class="custom-file-upload">
-            📁 Selecionar PDF para Visualização
-        </label>
-        <input type="file" id="pdf-file" accept="application/pdf" onchange="uploadAndPreview()" style="display:none;">
+    <header>
+        <a href="#" class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e5322d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            Corta Aí<span>PDF</span>
+        </a>
+    </header>
 
-        <div id="loading" style="display:none; color: #4CAF50;">⏳ Carregando página...</div>
+    <main>
+        <h1>Captura de PDF</h1>
+        <p class="subtitle">A ferramenta mais rápida e visual para selecionar, recortar e extrair partes específicas de qualquer página do seu documento PDF.</p>
 
-        <div id="preview-container">
+        <div class="upload-area" id="upload-section">
+            <label for="pdf-file" class="custom-file-upload">
+                📥 Selecionar arquivo PDF
+            </label>
+            <input type="file" id="pdf-file" accept="application/pdf" onchange="iniciarApp()" style="display:none;">
+            <p class="upload-hint">ou arraste e solte o PDF aqui</p>
+            <div id="loading" style="display:none; color: var(--primary-color); margin-top: 15px; font-weight: 600;">⏳ Processando o documento...</div>
+        </div>
+
+        <div class="how-it-works" id="instructions">
+            <div class="feature-card">
+                <h3>1. Envie o arquivo</h3>
+                <p>Selecione o PDF do seu computador. Tudo é processado rapidamente na tela.</p>
+            </div>
+            <div class="feature-card">
+                <h3>2. Ajuste a área</h3>
+                <p>Use nossa caixa de seleção interativa. Arraste e dimensione exatamente onde deseja recortar.</p>
+            </div>
+            <div class="feature-card">
+                <h3>3. Baixe o resultado</h3>
+                <p>Defina o intervalo de páginas e faça o download automático das áreas capturadas.</p>
+            </div>
+        </div>
+
+        <div id="tool-workspace">
             <div class="nav-controls">
-                <button type="button" class="nav-btn" onclick="changePage(-1)">⬅️ Anterior</button>
-                <span id="page-info">Página: 0</span>
-                <button type="button" class="nav-btn" onclick="changePage(1)">Próxima ➡️</button>
+                <button type="button" class="nav-btn" onclick="changePage(-1)">Anterior</button>
+                <span id="page-info" style="font-weight: bold; font-size: 18px;">Página: 0</span>
+                <button type="button" class="nav-btn" onclick="changePage(1)">Próxima</button>
             </div>
 
             <div id="preview-wrapper">
@@ -84,35 +58,46 @@
                     <div id="resizer"></div>
                 </div>
             </div>
-        </div>
 
-        <form action="/processar" method="post" id="main-form">
-            <input type="hidden" name="filename" id="hidden-filename">
-            <input type="hidden" name="coords" id="coords-input">
-            
-            <div class="row">
-                <div class="input-group">
-                    <label>Página Início:</label>
-                    <input type="number" name="inicio" id="input-inicio" value="0">
+            <form action="/processar" method="post" id="main-form">
+                <input type="hidden" name="filename" id="hidden-filename">
+                <input type="hidden" name="coords" id="coords-input">
+                
+                <div class="row">
+                    <div class="input-group">
+                        <label>Página Início:</label>
+                        <input type="number" name="inicio" id="input-inicio" value="0" min="0">
+                    </div>
+                    <div class="input-group">
+                        <label>Página Fim:</label>
+                        <input type="number" name="fim" id="input-fim" value="1" min="0">
+                    </div>
                 </div>
-                <div class="input-group">
-                    <label>Página Fim:</label>
-                    <input type="number" name="fim" value="1">
-                </div>
-            </div>
-            <button type="submit" class="btn-primary">GERAR E BAIXAR ZIP</button>
-        </form>
-        <p class="footer">© Pedro Bueno</p>
-    </div>
+                <button type="submit" class="btn-primary">GERAR RECORTE</button>
+            </form>
+        </div>
+    </main>
+
+    <footer>
+        <p>© 2026 Corta Aí PDF - Criado por os GOATS.</p>
+    </footer>
 
     <script>
+        function iniciarApp() {
+            document.getElementById('instructions').style.display = 'none';
+            document.getElementById('upload-section').style.padding = '30px 20px';
+            uploadAndPreview();
+        }
+
         const selector = document.getElementById('selector');
         const resizer = document.getElementById('resizer');
         const img = document.getElementById('pdf-img');
         const coordsInput = document.getElementById('coords-input');
         const inputInicio = document.getElementById('input-inicio');
+        const inputFim = document.getElementById('input-fim');
         
         let currentPage = 0;
+        let totalPages = 0;
 
         async function uploadAndPreview() {
             const file = document.getElementById('pdf-file').files[0];
@@ -126,7 +111,14 @@
             const data = await res.json();
             
             document.getElementById('hidden-filename').value = data.filename;
+            totalPages = data.total_pages; 
+            
+            inputInicio.max = totalPages - 1; 
+            inputFim.max = totalPages - 1;    
+
             currentPage = parseInt(inputInicio.value) || 0;
+            if (currentPage >= totalPages) currentPage = totalPages - 1; 
+            
             updatePreview();
         }
 
@@ -134,11 +126,11 @@
             const filename = document.getElementById('hidden-filename').value;
             img.src = `/preview/${filename}/${currentPage}?t=${new Date().getTime()}`;
             document.getElementById('page-info').innerText = `Visualizando Página: ${currentPage}`;
-            inputInicio.value = currentPage; // Sincroniza o form com a visão
+            inputInicio.value = currentPage; 
 
             img.onload = () => {
                 document.getElementById('loading').style.display = 'none';
-                document.getElementById('preview-container').style.display = 'block';
+                document.getElementById('tool-workspace').style.display = 'block';
                 updateCoords();
             };
         }
@@ -146,6 +138,7 @@
         function changePage(delta) {
             currentPage += delta;
             if (currentPage < 0) currentPage = 0;
+            if (currentPage >= totalPages) currentPage = totalPages - 1; 
             updatePreview();
         }
 
@@ -175,7 +168,6 @@
                 let x = e.clientX - startX;
                 let y = e.clientY - startY;
 
-                // Bloqueia saída das bordas
                 if (x < 0) x = 0;
                 if (y < 0) y = 0;
                 if (x + selector.offsetWidth > img.offsetWidth) x = img.offsetWidth - selector.offsetWidth;
@@ -188,7 +180,6 @@
                 let newWidth = startW + (e.clientX - startX);
                 let newHeight = startH + (e.clientY - startY);
 
-                // Bloqueia redimensionamento para fora da imagem
                 if (selector.offsetLeft + newWidth > img.offsetWidth) newWidth = img.offsetWidth - selector.offsetLeft;
                 if (selector.offsetTop + newHeight > img.offsetHeight) newHeight = img.offsetHeight - selector.offsetTop;
 

@@ -30,7 +30,14 @@ def upload_preview():
     pdf = request.files['pdf']
     pdf_path = os.path.join(UPLOAD_FOLDER, pdf.filename)
     pdf.save(pdf_path)
-    return {"filename": pdf.filename}
+    
+    # NOVO: Abre o PDF para descobrir o total de páginas
+    doc = fitz.open(pdf_path)
+    total_pages = len(doc)
+    doc.close()
+    
+    # Retorna o nome e o total de páginas
+    return {"filename": pdf.filename, "total_pages": total_pages}
 
 @app.route('/preview/<filename>/<int:pagnumber>')
 def preview(filename, pagnumber):
