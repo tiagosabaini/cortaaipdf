@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF Supremo CRUD</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Manipulador de PDF 🚀</h1>
+        
+        <form action="/processar" method="post" enctype="multipart/form-data">
+            <input type="file" name="pdf" required>
+            <div class="row">
+                <input type="number" name="inicio" placeholder="Início" value="10">
+                <input type="number" name="fim" placeholder="Fim" value="11">
+            </div>
+            <input type="text" name="coords" id="coords_input" placeholder="x0, y0, x1, y1" value="0, 51, 700, 745">
+            <button type="submit" class="btn-primary">GERAR ZIP</button>
+        </form>
+
+        <hr>
+
+        <h3>Salvar Configuração de Corte</h3>
+        <form action="/salvar" method="post">
+            <input type="text" name="nome_config" placeholder="Nome (Ex: Livro de História)">
+            <input type="text" name="coords" placeholder="Coordenadas">
+            <button type="submit">Salvar no Banco</button>
+        </form>
+
+        <ul class="config-list">
+            {% for config in configs %}
+            <li>
+                <strong>{{ config[1] }}</strong>: {{ config[2] }}
+            </li>
+            {% endfor %}
+        </ul>
+ 
+    </div>
+</body>
+</html>

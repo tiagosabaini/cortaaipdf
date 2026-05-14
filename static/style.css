@@ -1,0 +1,11 @@
+body { background: #121212; color: #eee; font-family: sans-serif; display: flex; justify-content: center; padding: 50px; }
+.container { background: #1e1e1e; padding: 30px; border-radius: 12px; width: 450px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+h1 { text-align: center; color: #4CAF50; }
+input { width: 100%; padding: 10px; margin: 10px 0; background: #333; border: 1px solid #444; color: white; border-radius: 5px; box-sizing: border-box; }
+.row { display: flex; gap: 10px; }
+button { width: 100%; padding: 12px; background: #4CAF50; border: none; color: white; font-weight: bold; border-radius: 5px; cursor: pointer; margin-top: 10px; }
+button:hover { background: #45a049; }
+hr { border: 0; border-top: 1px solid #333; margin: 20px 0; }
+.config-list { list-style: none; padding: 0; font-size: 14px; }
+.config-list li { background: #252525; padding: 10px; margin-bottom: 5px; border-radius: 4px; }
+.copyright { text-align: center; font-size: 10px; color: #666; margin-top: 20px; }
