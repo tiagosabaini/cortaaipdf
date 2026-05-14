@@ -2,40 +2,207 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>PDF Supremo CRUD</title>
+    <title>PDF Visual - Pedro Bueno</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        #preview-container {
+            display: none;
+            margin: 20px auto;
+            text-align: center;
+        }
+        #preview-wrapper {
+            position: relative;
+            display: inline-block;
+            border: 2px solid #555;
+            line-height: 0;
+            overflow: hidden; /* Garante que nada saia visualmente */
+            user-select: none;
+        }
+        #pdf-img {
+            max-width: 100%;
+            display: block;
+        }
+        #selector {
+            position: absolute;
+            border: 2px dashed #4CAF50;
+            background: rgba(76, 175, 80, 0.2);
+            cursor: move;
+            box-sizing: border-box;
+            width: 150px;
+            height: 150px;
+            top: 0;
+            left: 0;
+        }
+        #resizer {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 15px;
+            height: 15px;
+            background: #4CAF50;
+            cursor: nwse-resize;
+        }
+        .nav-controls {
+            margin: 15px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+        .nav-btn {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .nav-btn:hover { background: #555; }
+    </style>
 </head>
 <body>
     <div class="container">
-        <h1>Manipulador de PDF 🚀</h1>
-        
-        <form action="/processar" method="post" enctype="multipart/form-data">
-            <input type="file" name="pdf" required>
-            <div class="row">
-                <input type="number" name="inicio" placeholder="Início" value="10">
-                <input type="number" name="fim" placeholder="Fim" value="11">
+        <h1>Recortador Visual 2.0 🚀</h1>
+
+        <label for="pdf-file" class="custom-file-upload">
+            📁 Selecionar PDF para Visualização
+        </label>
+        <input type="file" id="pdf-file" accept="application/pdf" onchange="uploadAndPreview()" style="display:none;">
+
+        <div id="loading" style="display:none; color: #4CAF50;">⏳ Carregando página...</div>
+
+        <div id="preview-container">
+            <div class="nav-controls">
+                <button type="button" class="nav-btn" onclick="changePage(-1)">⬅️ Anterior</button>
+                <span id="page-info">Página: 0</span>
+                <button type="button" class="nav-btn" onclick="changePage(1)">Próxima ➡️</button>
             </div>
-            <input type="text" name="coords" id="coords_input" placeholder="x0, y0, x1, y1" value="0, 51, 700, 745">
-            <button type="submit" class="btn-primary">GERAR ZIP</button>
+
+            <div id="preview-wrapper">
+                <img id="pdf-img">
+                <div id="selector">
+                    <div id="resizer"></div>
+                </div>
+            </div>
+        </div>
+
+        <form action="/processar" method="post" id="main-form">
+            <input type="hidden" name="filename" id="hidden-filename">
+            <input type="hidden" name="coords" id="coords-input">
+            
+            <div class="row">
+                <div class="input-group">
+                    <label>Página Início:</label>
+                    <input type="number" name="inicio" id="input-inicio" value="0">
+                </div>
+                <div class="input-group">
+                    <label>Página Fim:</label>
+                    <input type="number" name="fim" value="1">
+                </div>
+            </div>
+            <button type="submit" class="btn-primary">GERAR E BAIXAR ZIP</button>
         </form>
-
-        <hr>
-
-        <h3>Salvar Configuração de Corte</h3>
-        <form action="/salvar" method="post">
-            <input type="text" name="nome_config" placeholder="Nome (Ex: Livro de História)">
-            <input type="text" name="coords" placeholder="Coordenadas">
-            <button type="submit">Salvar no Banco</button>
-        </form>
-
-        <ul class="config-list">
-            {% for config in configs %}
-            <li>
-                <strong>{{ config[1] }}</strong>: {{ config[2] }}
-            </li>
-            {% endfor %}
-        </ul>
- 
+        <p class="footer">© Pedro Bueno</p>
     </div>
+
+    <script>
+        const selector = document.getElementById('selector');
+        const resizer = document.getElementById('resizer');
+        const img = document.getElementById('pdf-img');
+        const coordsInput = document.getElementById('coords-input');
+        const inputInicio = document.getElementById('input-inicio');
+        
+        let currentPage = 0;
+
+        async function uploadAndPreview() {
+            const file = document.getElementById('pdf-file').files[0];
+            if(!file) return;
+
+            document.getElementById('loading').style.display = 'block';
+            const formData = new FormData();
+            formData.append('pdf', file);
+
+            const res = await fetch('/upload_preview', { method: 'POST', body: formData });
+            const data = await res.json();
+            
+            document.getElementById('hidden-filename').value = data.filename;
+            currentPage = parseInt(inputInicio.value) || 0;
+            updatePreview();
+        }
+
+        function updatePreview() {
+            const filename = document.getElementById('hidden-filename').value;
+            img.src = `/preview/${filename}/${currentPage}?t=${new Date().getTime()}`;
+            document.getElementById('page-info').innerText = `Visualizando Página: ${currentPage}`;
+            inputInicio.value = currentPage; // Sincroniza o form com a visão
+
+            img.onload = () => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('preview-container').style.display = 'block';
+                updateCoords();
+            };
+        }
+
+        function changePage(delta) {
+            currentPage += delta;
+            if (currentPage < 0) currentPage = 0;
+            updatePreview();
+        }
+
+        // Lógica de Arrastar e Redimensionar com Contenção
+        let isDragging = false, isResizing = false;
+        let startX, startY, startW, startH;
+
+        selector.onmousedown = (e) => {
+            if(e.target === resizer) return;
+            isDragging = true;
+            startX = e.clientX - selector.offsetLeft;
+            startY = e.clientY - selector.offsetTop;
+        };
+
+        resizer.onmousedown = (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startW = selector.offsetWidth;
+            startH = selector.offsetHeight;
+            e.stopPropagation();
+            e.preventDefault();
+        };
+
+        window.onmousemove = (e) => {
+            if (isDragging) {
+                let x = e.clientX - startX;
+                let y = e.clientY - startY;
+
+                // Bloqueia saída das bordas
+                if (x < 0) x = 0;
+                if (y < 0) y = 0;
+                if (x + selector.offsetWidth > img.offsetWidth) x = img.offsetWidth - selector.offsetWidth;
+                if (y + selector.offsetHeight > img.offsetHeight) y = img.offsetHeight - selector.offsetHeight;
+
+                selector.style.left = x + 'px';
+                selector.style.top = y + 'px';
+            }
+            if (isResizing) {
+                let newWidth = startW + (e.clientX - startX);
+                let newHeight = startH + (e.clientY - startY);
+
+                // Bloqueia redimensionamento para fora da imagem
+                if (selector.offsetLeft + newWidth > img.offsetWidth) newWidth = img.offsetWidth - selector.offsetLeft;
+                if (selector.offsetTop + newHeight > img.offsetHeight) newHeight = img.offsetHeight - selector.offsetTop;
+
+                selector.style.width = Math.max(20, newWidth) + 'px';
+                selector.style.height = Math.max(20, newHeight) + 'px';
+            }
+            updateCoords();
+        };
+
+        window.onmouseup = () => { isDragging = false; isResizing = false; };
+
+        function updateCoords() {
+            coordsInput.value = `${selector.offsetLeft},${selector.offsetTop},${selector.offsetWidth},${selector.offsetHeight}`;
+        }
+    </script>
 </body>
 </html>
