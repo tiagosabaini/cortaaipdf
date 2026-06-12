@@ -7,6 +7,42 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
+
+    <style>
+        #preview-wrapper {
+            position: relative;
+            display: inline-block; /* O container colará perfeitamente no tamanho exato da imagem */
+            margin: 0 auto;
+        }
+        #pdf-img {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+        #selector {
+            position: absolute; /* Conta os pixels estritamente baseados na borda da imagem */
+            top: 10px;
+            left: 10px;
+            width: 150px;
+            height: 150px;
+            border: 2px dashed #e5322d;
+            background-color: rgba(229, 50, 45, 0.15);
+            cursor: move;
+            box-sizing: border-box;
+        }
+        #resizer {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background-color: #e5322d;
+            bottom: -6px;
+            right: -6px;
+            cursor: se-resize;
+            border-radius: 50%;
+        }
+    </style>
 </head>
 <body>
 
@@ -25,7 +61,7 @@
             <label for="pdf-file" class="custom-file-upload">
                 📥 Selecionar arquivo PDF
             </label>
-            <input type="file" id="pdf-file" accept="application/pdf" onchange="iniciarApp()" style="display:none;">
+            <input type="file" id="pdf-file" accept="application/pdf" style="display:none;">
             <p class="upload-hint">ou arraste e solte o PDF aqui</p>
             <div id="loading" style="display:none; color: var(--primary-color); margin-top: 15px; font-weight: 600;">⏳ Processando o documento...</div>
         </div>
@@ -45,7 +81,7 @@
             </div>
         </div>
 
-        <div id="tool-workspace">
+        <div id="tool-workspace" style="display:none; text-align: center;">
             <div class="nav-controls">
                 <button type="button" class="nav-btn" onclick="changePage(-1)">Anterior</button>
                 <span id="page-info" style="font-weight: bold; font-size: 18px;">Página: 0</span>
@@ -53,7 +89,7 @@
             </div>
 
             <div id="preview-wrapper">
-                <img id="pdf-img">
+                <img id="pdf-img" alt="Preview do PDF">
                 <div id="selector">
                     <div id="resizer"></div>
                 </div>
@@ -65,11 +101,11 @@
                 
                 <div class="row">
                     <div class="input-group">
-                        <label>Página Início:</label>
+                        <label for="input-inicio">Página Início:</label>
                         <input type="number" name="inicio" id="input-inicio" value="0" min="0">
                     </div>
                     <div class="input-group">
-                        <label>Página Fim:</label>
+                        <label for="input-fim">Página Fim:</label>
                         <input type="number" name="fim" id="input-fim" value="1" min="0">
                     </div>
                 </div>
@@ -83,12 +119,8 @@
     </footer>
 
     <script>
-        function iniciarApp() {
-            document.getElementById('instructions').style.display = 'none';
-            document.getElementById('upload-section').style.padding = '30px 20px';
-            uploadAndPreview();
-        }
-
+        const uploadSection = document.getElementById('upload-section');
+        const fileInput = document.getElementById('pdf-file');
         const selector = document.getElementById('selector');
         const resizer = document.getElementById('resizer');
         const img = document.getElementById('pdf-img');
@@ -98,28 +130,62 @@
         
         let currentPage = 0;
         let totalPages = 0;
+        let selectedFile = null;
+
+        // --- Drag & Drop ---
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) { selectedFile = e.target.files[0]; iniciarApp(); }
+        });
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, () => uploadSection.classList.add('highlight'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, () => uploadSection.classList.remove('highlight'), false);
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            if (dt.files.length > 0 && dt.files[0].type === "application/pdf") {
+                selectedFile = dt.files[0];
+                iniciarApp();
+            } else {
+                alert("Por favor, envie apenas arquivos no formato PDF.");
+            }
+        });
+
+        function iniciarApp() {
+            if (!selectedFile) return;
+            document.getElementById('instructions').style.display = 'none';
+            uploadSection.style.padding = '30px 20px';
+            uploadAndPreview();
+        }
 
         async function uploadAndPreview() {
-            const file = document.getElementById('pdf-file').files[0];
-            if(!file) return;
-
             document.getElementById('loading').style.display = 'block';
             const formData = new FormData();
-            formData.append('pdf', file);
+            formData.append('pdf', selectedFile);
 
-            const res = await fetch('/upload_preview', { method: 'POST', body: formData });
-            const data = await res.json();
-            
-            document.getElementById('hidden-filename').value = data.filename;
-            totalPages = data.total_pages; 
-            
-            inputInicio.max = totalPages - 1; 
-            inputFim.max = totalPages - 1;    
+            try {
+                const res = await fetch('/upload_preview', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.error) { alert(data.error); document.getElementById('loading').style.display = 'none'; return; }
 
-            currentPage = parseInt(inputInicio.value) || 0;
-            if (currentPage >= totalPages) currentPage = totalPages - 1; 
-            
-            updatePreview();
+                document.getElementById('hidden-filename').value = data.filename;
+                totalPages = data.total_pages; 
+                inputInicio.max = totalPages - 1; 
+                inputFim.max = totalPages - 1;    
+                currentPage = parseInt(inputInicio.value) || 0;
+                updatePreview();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading').style.display = 'none';
+            }
         }
 
         function updatePreview() {
@@ -142,15 +208,34 @@
             updatePreview();
         }
 
-        // Lógica de Arrastar e Redimensionar com Contenção
+        // --- ENVIANDO POSIÇÕES INTERNAS PURAS ---
+        function updateCoords() {
+            // Como o selector agora usa position: absolute dentro de um wrapper inline-block relativo,
+            // as propriedades offsetLeft e offsetTop são EXATAMENTE a distância em pixels do início da imagem.
+            const x = selector.offsetLeft;
+            const y = selector.offsetTop;
+            const width = selector.offsetWidth;
+            const height = selector.offsetHeight;
+            
+            // Enviamos também as dimensões físicas atuais do elemento <img> na tela
+            const imgW = img.clientWidth;
+            const imgH = img.clientHeight;
+
+            coordsInput.value = `${x},${y},${width},${height},${imgW},${imgH}`;
+        }
+
+        // --- Controle do Mouse (Arrastar e Redimensionar) ---
         let isDragging = false, isResizing = false;
-        let startX, startY, startW, startH;
+        let startX, startY, startW, startH, initialLeft, initialTop;
 
         selector.onmousedown = (e) => {
             if(e.target === resizer) return;
             isDragging = true;
-            startX = e.clientX - selector.offsetLeft;
-            startY = e.clientY - selector.offsetTop;
+            startX = e.clientX;
+            startY = e.clientY;
+            initialLeft = selector.offsetLeft;
+            initialTop = selector.offsetTop;
+            e.preventDefault();
         };
 
         resizer.onmousedown = (e) => {
@@ -165,13 +250,14 @@
 
         window.onmousemove = (e) => {
             if (isDragging) {
-                let x = e.clientX - startX;
-                let y = e.clientY - startY;
+                let x = initialLeft + (e.clientX - startX);
+                let y = initialTop + (e.clientY - startY);
 
+                // Contenção estrita dentro das bordas da imagem
                 if (x < 0) x = 0;
                 if (y < 0) y = 0;
-                if (x + selector.offsetWidth > img.offsetWidth) x = img.offsetWidth - selector.offsetWidth;
-                if (y + selector.offsetHeight > img.offsetHeight) y = img.offsetHeight - selector.offsetHeight;
+                if (x + selector.offsetWidth > img.clientWidth) x = img.clientWidth - selector.offsetWidth;
+                if (y + selector.offsetHeight > img.clientHeight) y = img.clientHeight - selector.offsetHeight;
 
                 selector.style.left = x + 'px';
                 selector.style.top = y + 'px';
@@ -180,20 +266,24 @@
                 let newWidth = startW + (e.clientX - startX);
                 let newHeight = startH + (e.clientY - startY);
 
-                if (selector.offsetLeft + newWidth > img.offsetWidth) newWidth = img.offsetWidth - selector.offsetLeft;
-                if (selector.offsetTop + newHeight > img.offsetHeight) newHeight = img.offsetHeight - selector.offsetTop;
+                if (selector.offsetLeft + newWidth > img.clientWidth) newWidth = img.clientWidth - selector.offsetLeft;
+                if (selector.offsetTop + newHeight > img.clientHeight) newHeight = img.clientHeight - selector.offsetTop;
 
-                selector.style.width = Math.max(20, newWidth) + 'px';
-                selector.style.height = Math.max(20, newHeight) + 'px';
+                selector.style.width = Math.max(30, newWidth) + 'px';
+                selector.style.height = Math.max(30, newHeight) + 'px';
             }
-            updateCoords();
+            if (isDragging || isResizing) {
+                updateCoords();
+            }
         };
 
-        window.onmouseup = () => { isDragging = false; isResizing = false; };
-
-        function updateCoords() {
-            coordsInput.value = `${selector.offsetLeft},${selector.offsetTop},${selector.offsetWidth},${selector.offsetHeight}`;
-        }
+        window.onmouseup = () => { 
+            if (isDragging || isResizing) {
+                updateCoords();
+            }
+            isDragging = false; 
+            isResizing = false; 
+        };
     </script>
 </body>
 </html>
